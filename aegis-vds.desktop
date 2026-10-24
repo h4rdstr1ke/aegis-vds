@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=AegisVDS
+GenericName=VDS Censorship Diagnostics & Deployer
+Comment=Next-Gen VDS Censorship Diagnostics and Zero-Touch VLESS Reality Deployer
+Exec=/home/h4rdstr1ke/Projects/aegis-vds/aegis-desktop
+Icon=aegis-vds
+Terminal=false
+Categories=Network;Security;Utility;
+StartupWMClass=AegisVDS
+Keywords=vpn;proxy;vless;reality;vds;censorship;dpi;probe;

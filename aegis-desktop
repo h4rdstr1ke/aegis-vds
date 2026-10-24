@@ -1,0 +1,123 @@
+#!/usr/bin/env python3
+"""
+AegisVDS Desktop Application
+Native GTK3 / WebKit2 Desktop Window Wrapper
+"""
+
+import sys
+import os
+import time
+import subprocess
+import signal
+import urllib.request
+import urllib.error
+
+# Ensure GTK 3.0 and WebKit2 4.1 bindings
+import gi
+gi.require_version('Gtk', '3.0')
+gi.require_version('WebKit2', '4.1')
+from gi.repository import Gtk, Gdk, WebKit2, GLib, GdkPixbuf
+
+APP_DIR = os.path.dirname(os.path.abspath(__file__))
+BIN_PATH = os.path.join(APP_DIR, "aegis")
+ICON_PATH = os.path.join(APP_DIR, "assets", "icon.svg")
+PORT = 4344
+URL = f"http://127.0.0.1:{PORT}"
+
+backend_proc = None
+
+def is_backend_alive():
+    try:
+        with urllib.request.urlopen(f"{URL}/api/status", timeout=0.5) as resp:
+            return resp.status == 200
+    except Exception:
+        return False
+
+def start_backend():
+    global backend_proc
+    if is_backend_alive():
+        return  # Already running
+
+    cmd = [BIN_PATH, "server"]
+    backend_proc = subprocess.Popen(
+        cmd,
+        cwd=APP_DIR,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        preexec_fn=os.setsid
+    )
+
+    # Wait up to 3 seconds for server to start
+    start_time = time.time()
+    while time.time() - start_time < 3.0:
+        if is_backend_alive():
+            return
+        time.sleep(0.08)
+
+def stop_backend():
+    global backend_proc
+    if backend_proc:
+        try:
+            os.killpg(os.getpgid(backend_proc.pid), signal.SIGTERM)
+        except Exception:
+            try:
+                backend_proc.terminate()
+            except Exception:
+                pass
+        backend_proc = None
+
+def create_window():
+    # Prefer dark GTK theme
+    settings = Gtk.Settings.get_default()
+    if settings:
+        settings.set_property("gtk-application-prefer-dark-theme", True)
+
+    GLib.set_prgname("AegisVDS")
+    window = Gtk.Window(type=Gtk.WindowType.TOPLEVEL)
+    window.set_title("AegisVDS — VDS Censorship Diagnostics & Zero-Touch Deployer")
+    window.set_role("AegisVDS")
+    window.set_default_size(1180, 780)
+    window.set_position(Gtk.WindowPosition.CENTER)
+
+    # Set application icon
+    if os.path.exists(ICON_PATH):
+        try:
+            pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(ICON_PATH, 128, 128, True)
+            window.set_icon(pixbuf)
+        except Exception:
+            pass
+
+    # Create WebKit2 WebView
+    webview = WebKit2.WebView()
+    
+    # Dark background color to avoid white flash
+    bg_color = Gdk.RGBA(red=0.03, green=0.05, blue=0.08, alpha=1.0)
+    webview.set_background_color(bg_color)
+
+    # Configure webview settings
+    web_settings = webview.get_settings()
+    web_settings.set_enable_developer_extras(False)
+    web_settings.set_javascript_can_access_clipboard(True)
+
+    webview.load_uri(URL)
+
+    # Container
+    scrolled = Gtk.ScrolledWindow()
+    scrolled.add(webview)
+    window.add(scrolled)
+
+    def on_destroy(widget):
+        stop_backend()
+        Gtk.main_quit()
+
+    window.connect("destroy", on_destroy)
+    window.show_all()
+    return window
+
+def main():
+    start_backend()
+    create_window()
+    Gtk.main()
+
+if __name__ == "__main__":
+    main()

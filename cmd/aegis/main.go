@@ -4,6 +4,8 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -11,35 +13,51 @@ import (
 	"aegis-vds/internal/deployer"
 	"aegis-vds/internal/exporter"
 	"aegis-vds/internal/probe"
+	"aegis-vds/internal/server"
 	"aegis-vds/internal/sshclient"
 	"aegis-vds/internal/ui"
+	desktopui "aegis-vds/ui"
 )
 
 func main() {
-	ui.PrintBanner()
-
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
+		case "server":
+			runBackendServer(false)
+			return
+		case "gui", "--gui":
+			runBackendServer(true)
+			return
+		case "cli", "wizard":
+			ui.PrintBanner()
+			runWizard()
+			return
 		case "probe":
+			ui.PrintBanner()
 			runProbeCommand(os.Args[2:])
 			return
 		case "scan-sni":
+			ui.PrintBanner()
 			runScanSNICommand(os.Args[2:])
 			return
 		case "help", "--help", "-h":
+			ui.PrintBanner()
 			printUsage()
 			return
 		}
 	}
 
-	// Default to interactive wizard
-	runWizard()
+	// By default, launch the desktop application
+	runDesktopApp()
 }
 
 func printUsage() {
 	fmt.Printf("%sUsage:%s\n", ui.Bold, ui.Reset)
-	fmt.Println("  aegis                 Launch interactive wizard (Diagnostics & Deploy)")
-	fmt.Println("  aegis probe [flags]   Perform full VDS and DPI diagnostics without deploying")
+	fmt.Println("  aegis                 Launch AegisVDS Native Desktop Application (Default)")
+	fmt.Println("  aegis server          Run headless backend API server")
+	fmt.Println("  aegis gui             Launch Web Dashboard in external browser")
+	fmt.Println("  aegis cli             Launch interactive terminal CLI wizard")
+	fmt.Println("  aegis probe [flags]   Perform full VDS and DPI diagnostics in terminal")
 	fmt.Println("  aegis scan-sni        Scan and rank candidate SNI masking domains for Reality")
 	fmt.Println("  aegis help            Show this help message")
 	fmt.Println()
@@ -48,6 +66,38 @@ func printUsage() {
 	fmt.Println("  -p, --port    SSH port (default: 22)")
 	fmt.Println("  -u, --user    SSH username (default: root)")
 	fmt.Println("  -k, --key     Path to SSH private key")
+}
+
+func runBackendServer(autoOpenBrowser bool) {
+	port := 4344
+	srv := server.NewServer(port, desktopui.FS, autoOpenBrowser)
+	if err := srv.Start(); err != nil {
+		ui.Error("Server error: %v", err)
+		os.Exit(1)
+	}
+}
+
+func runDesktopApp() {
+	// Execute the desktop window wrapper
+	execPath, err := os.Executable()
+	if err != nil {
+		execPath = "./aegis"
+	}
+	appDir := filepath.Dir(execPath)
+	desktopScript := filepath.Join(appDir, "aegis-desktop")
+
+	if _, err := os.Stat(desktopScript); err == nil {
+		cmd := exec.Command("python3", desktopScript)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil {
+			fmt.Printf("Error running desktop window: %v\n", err)
+		}
+		return
+	}
+
+	// Fallback to server with browser if desktop script is missing
+	runBackendServer(true)
 }
 
 func runWizard() {
@@ -175,13 +225,11 @@ func runWizard() {
 	// 5. Deploy Sing-box & Keys
 	ui.Step(5, 5, "Generating keys & deploying Sing-box to VDS")
 
-	// Enable BBR
 	bbrEnabled, _ := deployer.EnableBBR(client)
 	if bbrEnabled {
 		ui.Success("TCP BBR congestion control activated on VDS")
 	}
 
-	// Keys
 	keys, err := crypto.GenerateRealityKeys()
 	if err != nil {
 		ui.Error("Failed to generate Reality cryptographic keys: %v", err)
@@ -189,7 +237,6 @@ func runWizard() {
 	}
 	ui.Success("Generated X25519 keypair and short ID")
 
-	// Deploy
 	err = deployer.DeploySingBox(client, deployer.DeployConfig{
 		Port:      443,
 		TargetSNI: chosenSNI,

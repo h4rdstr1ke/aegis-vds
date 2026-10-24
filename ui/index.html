@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="ru" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AegisVDS — VDS Censorship Diagnostics & Zero-Touch Deployer</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#ecfeff',
+              100: '#cffafe',
+              500: '#06b6d4',
+              600: '#0891b2',
+              900: '#164e63',
+            },
+            darkBg: '#090d16',
+            darkCard: '#111827',
+            darkBorder: '#1f2937'
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      background-color: #080c14;
+      color: #f3f4f6;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    .glass {
+      background: rgba(17, 24, 39, 0.75);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .glow-cyan {
+      box-shadow: 0 0 25px -5px rgba(6, 182, 212, 0.25);
+    }
+    .tab-active {
+      background: rgba(6, 182, 212, 0.15);
+      color: #22d3ee;
+      border-color: #06b6d4;
+    }
+    @keyframes pulse-slow {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.6; transform: scale(1.05); }
+    }
+    .pulse-dot {
+      animation: pulse-slow 2s infinite ease-in-out;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+  <!-- TOP NAVIGATION -->
+  <header class="glass sticky top-0 z-50 border-b border-gray-800">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
+          <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+          </svg>
+        </div>
+        <div>
+          <div class="flex items-center space-x-2">
+            <span class="text-xl font-bold tracking-tight text-white">Aegis<span class="text-cyan-400">VDS</span></span>
+            <span class="text-xs px-2 py-0.5 rounded-full bg-cyan-950 text-cyan-400 border border-cyan-800/60 font-mono">v1.0 Pro</span>
+          </div>
+          <p class="text-xs text-gray-400">Диагностика ТСПУ/DPI и автоматическое развертывание VLESS Reality</p>
+        </div>
+      </div>
+
+      <div class="flex items-center space-x-4">
+        <div class="flex items-center space-x-2 text-xs text-emerald-400 bg-emerald-950/40 border border-emerald-800/40 px-3 py-1.5 rounded-lg">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 pulse-dot"></span>
+          <span>Core Engine Active</span>
+        </div>
+        <button onclick="runSNIScan()" class="text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white px-3 py-1.5 rounded-lg border border-gray-700 transition">
+          🔄 Проверить SNI
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN CONTAINER -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full space-y-6">
+
+    <!-- NAVIGATION TABS -->
+    <div class="flex space-x-2 border-b border-gray-800 pb-2">
+      <button onclick="switchTab('audit')" id="tab-btn-audit" class="tab-active px-4 py-2 rounded-lg font-medium text-sm border border-transparent transition flex items-center space-x-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        <span>1. Аудит VDS & DPI</span>
+      </button>
+      <button onclick="switchTab('sni')" id="tab-btn-sni" class="text-gray-400 hover:text-gray-200 px-4 py-2 rounded-lg font-medium text-sm border border-transparent transition flex items-center space-x-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/></svg>
+        <span>2. Сканер маскировки SNI</span>
+      </button>
+      <button onclick="switchTab('deploy')" id="tab-btn-deploy" class="text-gray-400 hover:text-gray-200 px-4 py-2 rounded-lg font-medium text-sm border border-transparent transition flex items-center space-x-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+        <span>3. Развертывание Sing-box</span>
+      </button>
+    </div>
+
+    <!-- TAB 1: AUDIT & PROBE -->
+    <div id="tab-audit" class="space-y-6">
+      
+      <!-- SSH Connection Card -->
+      <div class="glass rounded-2xl p-6 glow-cyan">
+        <h2 class="text-lg font-semibold text-white flex items-center space-x-2 mb-4">
+          <span class="w-7 h-7 rounded-lg bg-cyan-500/10 text-cyan-400 flex items-center justify-center font-mono text-sm">#1</span>
+          <span>Параметры подключения к серверу (SSH)</span>
+        </h2>
+        
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div class="md:col-span-2">
+            <label class="block text-xs font-medium text-gray-400 mb-1">IP-адрес или домен VDS *</label>
+            <input type="text" id="ssh-host" placeholder="например: 185.196.220.10" class="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-400 mb-1">SSH Порт</label>
+            <input type="number" id="ssh-port" value="22" class="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-cyan-500">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-400 mb-1">Пользователь</label>
+            <input type="text" id="ssh-user" value="root" class="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-cyan-500">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+          <div>
+            <label class="block text-xs font-medium text-gray-400 mb-1">Пароль SSH (не сохраняется)</label>
+            <input type="password" id="ssh-pass" placeholder="Пароль root" class="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-cyan-500">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-400 mb-1">Или путь к SSH-ключу</label>
+            <input type="text" id="ssh-key" placeholder="~/.ssh/id_ed25519" class="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-cyan-500">
+          </div>
+        </div>
+
+        <div class="mt-6 flex items-center justify-between pt-4 border-t border-gray-800">
+          <p class="text-xs text-gray-400 flex items-center space-x-1.5">
+            <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+            <span>Прямое защищенное соединение по SSH без сторонних серверов</span>
+          </p>
+          <button id="btn-run-probe" onclick="runProbe()" class="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-medium px-6 py-2.5 rounded-xl shadow-lg shadow-cyan-500/20 flex items-center space-x-2 transition cursor-pointer">
+            <svg id="probe-spinner" class="w-4 h-4 animate-spin hidden" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
+            <span id="probe-btn-text">🚀 Запустить аудит VDS</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- AUDIT RESULTS (Hidden until run) -->
+      <div id="probe-results" class="hidden space-y-6">
+
+        <!-- Top stats cards -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div class="glass rounded-xl p-4 border border-gray-800">
+            <span class="text-xs text-gray-400">Пинг (RTT)</span>
+            <div id="res-rtt" class="text-2xl font-bold text-cyan-400 mt-1">-- ms</div>
+            <span id="res-jitter" class="text-xs text-gray-400">Джиттер: -- ms</span>
+          </div>
+          <div class="glass rounded-xl p-4 border border-gray-800">
+            <span class="text-xs text-gray-400">Фильтрация UDP</span>
+            <div id="res-udp" class="text-xl font-bold text-emerald-400 mt-1">Открыт</div>
+            <span class="text-xs text-gray-400">Поддержка QUIC & WireGuard</span>
+          </div>
+          <div class="glass rounded-xl p-4 border border-gray-800">
+            <span class="text-xs text-gray-400">Виртуализация & ОС</span>
+            <div id="res-os" class="text-base font-bold text-white mt-1 truncate">Linux</div>
+            <span id="res-virt" class="text-xs text-cyan-400 font-mono">KVM</span>
+          </div>
+          <div class="glass rounded-xl p-4 border border-gray-800">
+            <span class="text-xs text-gray-400">TCP Ускорение (BBR)</span>
+            <div id="res-bbr" class="text-base font-bold text-emerald-400 mt-1">Активен</div>
+            <span class="text-xs text-gray-400">Высокая устойчивость к потерям</span>
+          </div>
+        </div>
+
+        <!-- Detailed Protocol Compatibility Matrix -->
+        <div class="glass rounded-2xl p-6">
+          <div class="flex items-center justify-between mb-4">
+            <div>
+              <h3 class="text-base font-semibold text-white">Матрица устойчивости к блокировкам (ТСПУ / DPI)</h3>
+              <p class="text-xs text-gray-400">Автоматическая оценка протоколов для текущего сервера и провайдера</p>
+            </div>
+            <span class="text-xs bg-cyan-950 text-cyan-400 border border-cyan-800 px-2.5 py-1 rounded-md font-mono">2026 Ready</span>
+          </div>
+
+          <div id="protocol-cards" class="space-y-3">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- TAB 2: SNI SCANNER -->
+    <div id="tab-sni" class="hidden space-y-6">
+      <div class="glass rounded-2xl p-6">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="text-lg font-semibold text-white">Сканер маскировочных доменов для VLESS Reality</h2>
+            <p class="text-xs text-gray-400">Проверка TLS 1.3 и HTTP/2 рукопожатия напрямую из вашей сети</p>
+          </div>
+          <button onclick="runSNIScan()" class="bg-cyan-600 hover:bg-cyan-500 text-white text-xs px-4 py-2 rounded-lg font-medium transition flex items-center space-x-1.5">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            <span>Повторить сканирование</span>
+          </button>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-sm text-gray-300">
+            <thead class="bg-gray-900/60 text-xs uppercase text-gray-400 border-b border-gray-800">
+              <tr>
+                <th class="py-3 px-4">Домен маскировки</th>
+                <th class="py-3 px-4">TLS 1.3</th>
+                <th class="py-3 px-4">ALPN (HTTP/2)</th>
+                <th class="py-3 px-4">Задержка (RTT)</th>
+                <th class="py-3 px-4">Статус DPI</th>
+                <th class="py-3 px-4 text-right">Действие</th>
+              </tr>
+            </thead>
+            <tbody id="sni-table-body" class="divide-y divide-gray-800">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 3: DEPLOYMENT -->
+    <div id="tab-deploy" class="hidden space-y-6">
+      <div class="glass rounded-2xl p-6">
+        <h2 class="text-lg font-semibold text-white mb-2">Развертывание антицензурного VLESS-Reality</h2>
+        <p class="text-xs text-gray-400 mb-6">Автоматическая установка Sing-box, генерация X25519 ключей и запуск службы</p>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div>
+            <label class="block text-xs font-medium text-gray-400 mb-1">Выбранный домен маскировки (SNI)</label>
+            <input type="text" id="deploy-sni" value="dl.google.com" class="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-2.5 text-sm text-cyan-400 font-mono focus:outline-none focus:border-cyan-500">
+            <span class="text-xs text-gray-500 mt-1 block">Домен, под который маскируется исходящий трафик</span>
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-gray-400 mb-1">Порт прокси (стандартно 443)</label>
+            <input type="number" id="deploy-port" value="443" class="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-cyan-500">
+            <span class="text-xs text-gray-500 mt-1 block">Порт HTTPS трафика для имитации браузера</span>
+          </div>
+
+          <div class="flex items-center pt-6">
+            <label class="flex items-center space-x-3 cursor-pointer">
+              <input type="checkbox" id="deploy-bbr" checked class="w-5 h-5 rounded bg-gray-900 border-gray-700 text-cyan-500 focus:ring-0">
+              <span class="text-sm font-medium text-gray-200">Включить Google TCP BBR</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="mt-8 pt-6 border-t border-gray-800 flex justify-end">
+          <button id="btn-deploy" onclick="runDeploy()" class="bg-gradient-to-r from-emerald-500 to-cyan-600 hover:from-emerald-400 hover:to-cyan-500 text-white font-semibold px-8 py-3 rounded-xl shadow-lg shadow-emerald-500/20 flex items-center space-x-2 transition cursor-pointer">
+            <svg id="deploy-spinner" class="w-5 h-5 animate-spin hidden" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
+            <span id="deploy-btn-text">⚡ Установить и активировать Sing-box</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- SUCCESS MODAL / RESULT CARD -->
+      <div id="deploy-result" class="hidden glass rounded-2xl p-8 border border-emerald-500/40 glow-cyan">
+        <div class="text-center max-w-xl mx-auto space-y-4">
+          <div class="w-16 h-16 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto border border-emerald-500/30">
+            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+          </div>
+          <h3 class="text-2xl font-bold text-white">Сервер успешно развернут!</h3>
+          <p class="text-sm text-gray-300">Ваш VLESS-Reality узел активен, защищен и готов к приему трафика.</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mt-8 items-center max-w-4xl mx-auto bg-gray-900/60 p-6 rounded-2xl border border-gray-800">
+          <div class="text-center">
+            <span class="text-xs uppercase tracking-wider text-gray-400 block mb-3 font-semibold">Сканируйте камерой смартфона:</span>
+            <div class="inline-block p-3 bg-white rounded-2xl shadow-2xl">
+              <img id="res-qr-code" src="" alt="QR Code" class="w-64 h-64 mx-auto rounded-lg">
+            </div>
+            <p class="text-xs text-gray-400 mt-2">Совместимо с Hiddify, Streisand, Sing-box, v2rayNG</p>
+          </div>
+
+          <div class="space-y-4">
+            <div>
+              <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Ссылка конфигурации (vless://):</label>
+              <div class="relative">
+                <textarea id="res-vless-link" readonly rows="3" class="w-full bg-gray-950 border border-gray-800 rounded-xl p-3 text-xs font-mono text-cyan-300 break-all resize-none focus:outline-none"></textarea>
+                <button onclick="copyVless()" class="absolute right-2 bottom-2 bg-cyan-600 hover:bg-cyan-500 text-white text-xs px-3 py-1.5 rounded-lg font-medium transition flex items-center space-x-1">
+                  <span id="copy-text">Копировать</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 text-xs font-mono">
+              <div class="bg-gray-950 p-2.5 rounded-lg border border-gray-800">
+                <span class="text-gray-500 block">UUID:</span>
+                <span id="res-uuid" class="text-gray-300 truncate block"></span>
+              </div>
+              <div class="bg-gray-950 p-2.5 rounded-lg border border-gray-800">
+                <span class="text-gray-500 block">Short ID:</span>
+                <span id="res-short-id" class="text-gray-300 truncate block"></span>
+              </div>
+            </div>
+
+            <div class="pt-2">
+              <button onclick="downloadClientJSON()" class="w-full bg-gray-800 hover:bg-gray-700 text-gray-200 text-sm py-2.5 rounded-xl font-medium border border-gray-700 transition flex items-center justify-center space-x-2">
+                <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                <span>Скачать client-config.json для ПК</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <footer class="border-t border-gray-800/80 py-4 text-center text-xs text-gray-500">
+    AegisVDS • Open-Source Anti-Censorship Automation System • 2026
+  </footer>
+
+  <!-- REACTIVITY SCRIPT -->
+  <script>
+    let currentVlessLink = "";
+    let lastDeployData = null;
+
+    function switchTab(tabId) {
+      ['audit', 'sni', 'deploy'].forEach(t => {
+        document.getElementById('tab-' + t).classList.add('hidden');
+        document.getElementById('tab-btn-' + t).classList.remove('tab-active');
+        document.getElementById('tab-btn-' + t).classList.add('text-gray-400');
+      });
+      document.getElementById('tab-' + tabId).classList.remove('hidden');
+      document.getElementById('tab-btn-' + tabId).classList.add('tab-active');
+      document.getElementById('tab-btn-' + tabId).classList.remove('text-gray-400');
+
+      if (tabId === 'sni') {
+        runSNIScan();
+      }
+    }
+
+    async function runSNIScan() {
+      const tbody = document.getElementById('sni-table-body');
+      tbody.innerHTML = '<tr><td colspan="6" class="py-6 text-center text-gray-400 animate-pulse">Сканирование SNI доменов...</td></tr>';
+
+      try {
+        const res = await fetch('/api/sni/scan');
+        const data = await res.json();
+        tbody.innerHTML = '';
+
+        data.candidates.forEach(c => {
+          const isBest = c.domain === data.best_domain;
+          const tr = document.createElement('tr');
+          tr.className = isBest ? 'bg-cyan-950/20 font-medium' : 'hover:bg-gray-800/40';
+
+          tr.innerHTML = `
+            <td class="py-3 px-4 font-mono ${isBest ? 'text-cyan-400 font-bold' : 'text-gray-200'}">
+              ${c.domain} ${isBest ? '<span class="ml-2 text-xs bg-cyan-900/60 text-cyan-300 border border-cyan-700 px-2 py-0.5 rounded">Лучший</span>' : ''}
+            </td>
+            <td class="py-3 px-4 text-emerald-400">${c.has_tls13 ? '✓ 1.3' : '✗'}</td>
+            <td class="py-3 px-4 text-cyan-400">${c.supports_h2 ? '✓ HTTP/2' : '✗'}</td>
+            <td class="py-3 px-4 font-mono text-gray-300">${c.latency_ms} ms</td>
+            <td class="py-3 px-4">
+              <span class="inline-flex items-center px-2 py-0.5 rounded text-xs ${c.is_working ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-red-950 text-red-400 border border-red-800'}">
+                ${c.is_working ? 'Доступен' : 'Блокирован'}
+              </span>
+            </td>
+            <td class="py-3 px-4 text-right">
+              <button onclick="selectSNI('${c.domain}')" class="text-xs bg-gray-800 hover:bg-cyan-600 text-gray-300 hover:text-white px-2.5 py-1 rounded transition">
+                Выбрать
+              </button>
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+
+        if (data.best_domain) {
+          document.getElementById('deploy-sni').value = data.best_domain;
+        }
+      } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="6" class="py-4 text-center text-red-400">Ошибка сканирования: ${err.message}</td></tr>`;
+      }
+    }
+
+    function selectSNI(domain) {
+      document.getElementById('deploy-sni').value = domain;
+      switchTab('deploy');
+    }
+
+    async function runProbe() {
+      const host = document.getElementById('ssh-host').value.trim();
+      const port = parseInt(document.getElementById('ssh-port').value) || 22;
+      const user = document.getElementById('ssh-user').value.trim() || 'root';
+      const password = document.getElementById('ssh-pass').value;
+      const key_path = document.getElementById('ssh-key').value.trim();
+
+      if (!host) {
+        alert('Пожалуйста, введите IP-адрес сервера');
+        return;
+      }
+
+      const btn = document.getElementById('btn-run-probe');
+      const spinner = document.getElementById('probe-spinner');
+      const btnText = document.getElementById('probe-btn-text');
+      btn.disabled = true;
+      spinner.classList.remove('hidden');
+      btnText.innerText = 'Выполняется аудит VDS...';
+
+      try {
+        const res = await fetch('/api/vds/probe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ host, port, user, password, key_path })
+        });
+
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+
+        // Populate results
+        document.getElementById('probe-results').classList.remove('hidden');
+        document.getElementById('res-rtt').innerText = `${Math.round(data.latency.AvgRTT / 1000000)} ms`;
+        document.getElementById('res-jitter').innerText = `Джиттер: ${Math.round(data.latency.Jitter / 1000000)} ms`;
+        document.getElementById('res-udp').innerText = data.dpi_report.IsUDPOpen ? 'Открыт' : 'Ограничен';
+        document.getElementById('res-udp').className = data.dpi_report.IsUDPOpen ? 'text-xl font-bold text-emerald-400 mt-1' : 'text-xl font-bold text-yellow-400 mt-1';
+        document.getElementById('res-os').innerText = data.system.OS || 'Linux';
+        document.getElementById('res-virt').innerText = `${data.system.Virtualization} • RAM: ${data.system.RAMTotalMB}`;
+        document.getElementById('res-bbr').innerText = data.system.BBRStatus;
+
+        // Protocol cards
+        const pCards = document.getElementById('protocol-cards');
+        pCards.innerHTML = '';
+        data.dpi_report.Recommendations.forEach(r => {
+          let badgeColor = 'bg-emerald-950 text-emerald-400 border-emerald-800';
+          if (r.Grade === 'B' || r.Grade === 'C') badgeColor = 'bg-yellow-950 text-yellow-400 border-yellow-800';
+          if (r.Grade === 'F') badgeColor = 'bg-red-950 text-red-400 border-red-800';
+
+          const card = document.createElement('div');
+          card.className = 'bg-gray-900/60 border border-gray-800 rounded-xl p-4 flex items-center justify-between';
+          card.innerHTML = `
+            <div>
+              <div class="flex items-center space-x-2">
+                <span class="px-2 py-0.5 rounded text-xs font-bold border ${badgeColor}">${r.Grade}</span>
+                <span class="font-semibold text-white text-sm">${r.Name}</span>
+                <span class="text-xs text-gray-400 font-mono">(${r.Status})</span>
+              </div>
+              <p class="text-xs text-gray-400 mt-1">${r.Description}</p>
+            </div>
+            <div class="text-right">
+              <span class="text-xs text-emerald-400 block">${r.Pros}</span>
+              ${r.Cons ? `<span class="text-xs text-gray-500 block">${r.Cons}</span>` : ''}
+            </div>
+          `;
+          pCards.appendChild(card);
+        });
+
+      } catch (err) {
+        alert('Ошибка при аудите сервера: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        spinner.classList.add('hidden');
+        btnText.innerText = '🚀 Запустить аудит VDS';
+      }
+    }
+
+    async function runDeploy() {
+      const host = document.getElementById('ssh-host').value.trim();
+      const port = parseInt(document.getElementById('ssh-port').value) || 22;
+      const user = document.getElementById('ssh-user').value.trim() || 'root';
+      const password = document.getElementById('ssh-pass').value;
+      const key_path = document.getElementById('ssh-key').value.trim();
+      const target_sni = document.getElementById('deploy-sni').value.trim();
+      const vless_port = parseInt(document.getElementById('deploy-port').value) || 443;
+      const enable_bbr = document.getElementById('deploy-bbr').checked;
+
+      if (!host) {
+        alert('Пожалуйста, укажите IP сервера во вкладке Аудита');
+        switchTab('audit');
+        return;
+      }
+
+      const btn = document.getElementById('btn-deploy');
+      const spinner = document.getElementById('deploy-spinner');
+      const btnText = document.getElementById('deploy-btn-text');
+      btn.disabled = true;
+      spinner.classList.remove('hidden');
+      btnText.innerText = 'Развертывание Sing-box на VDS...';
+
+      try {
+        const res = await fetch('/api/vds/deploy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ host, port, user, password, key_path, target_sni, vless_port, enable_bbr })
+        });
+
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+
+        lastDeployData = data;
+        currentVlessLink = data.vless_link;
+
+        document.getElementById('res-qr-code').src = data.qr_code;
+        document.getElementById('res-vless-link').value = data.vless_link;
+        document.getElementById('res-uuid').innerText = data.keys.uuid;
+        document.getElementById('res-short-id').innerText = data.keys.short_id;
+
+        document.getElementById('deploy-result').classList.remove('hidden');
+        document.getElementById('deploy-result').scrollIntoView({ behavior: 'smooth' });
+
+      } catch (err) {
+        alert('Ошибка развертывания: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        spinner.classList.add('hidden');
+        btnText.innerText = '⚡ Установить и активировать Sing-box';
+      }
+    }
+
+    function copyVless() {
+      const textarea = document.getElementById('res-vless-link');
+      navigator.clipboard.writeText(textarea.value);
+      const copyText = document.getElementById('copy-text');
+      copyText.innerText = 'Скопировано!';
+      setTimeout(() => copyText.innerText = 'Копировать', 2000);
+    }
+
+    function downloadClientJSON() {
+      if (!lastDeployData) return;
+      const clientConfig = {
+        log: { level: "info" },
+        inbounds: [{ type: "mixed", tag: "mixed-in", listen: "127.0.0.1", listen_port: 2080 }],
+        outbounds: [
+          {
+            type: "vless",
+            tag: "proxy",
+            server: document.getElementById('ssh-host').value.trim(),
+            server_port: lastDeployData.port,
+            uuid: lastDeployData.keys.uuid,
+            flow: "xtls-rprx-vision",
+            tls: {
+              enabled: true,
+              server_name: lastDeployData.sni,
+              reality: {
+                enabled: true,
+                public_key: lastDeployData.keys.public_key,
+                short_id: lastDeployData.keys.short_id
+              },
+              utls: { enabled: true, fingerprint: "chrome" }
+            }
+          },
+          { type: "direct", tag: "direct" },
+          { type: "block", tag: "block" }
+        ]
+      };
+
+      const blob = new Blob([JSON.stringify(clientConfig, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "sing-box-client.json";
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    // Auto-init SNI scan on load
+    window.addEventListener('DOMContentLoaded', () => {
+      runSNIScan();
+    });
+  </script>
+</body>
+</html>
