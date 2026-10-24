@@ -21,15 +21,17 @@ import (
 
 // Server handles UI HTTP requests and API endpoints
 type Server struct {
-	port       int
-	frontendFS fs.FS
+	port            int
+	frontendFS      fs.FS
+	AutoOpenBrowser bool
 }
 
 // NewServer initializes the HTTP server with embedded frontend assets
-func NewServer(port int, frontendFS fs.FS) *Server {
+func NewServer(port int, frontendFS fs.FS, autoOpenBrowser bool) *Server {
 	return &Server{
-		port:       port,
-		frontendFS: frontendFS,
+		port:            port,
+		frontendFS:      frontendFS,
+		AutoOpenBrowser: autoOpenBrowser,
 	}
 }
 
@@ -48,13 +50,14 @@ func (s *Server) Start() error {
 	mux.Handle("/", fileServer)
 
 	addr := fmt.Sprintf("127.0.0.1:%d", s.port)
-	fmt.Printf("\n  🚀 AegisVDS UI Server running at: http://%s\n", addr)
 
-	// Open browser automatically
-	go func() {
-		time.Sleep(300 * time.Millisecond)
-		OpenBrowser(fmt.Sprintf("http://%s", addr))
-	}()
+	if s.AutoOpenBrowser {
+		fmt.Printf("\n  🚀 AegisVDS UI Server running at: http://%s\n", addr)
+		go func() {
+			time.Sleep(300 * time.Millisecond)
+			OpenBrowser(fmt.Sprintf("http://%s", addr))
+		}()
+	}
 
 	return http.ListenAndServe(addr, mux)
 }
