@@ -11,35 +11,47 @@ import (
 	"aegis-vds/internal/deployer"
 	"aegis-vds/internal/exporter"
 	"aegis-vds/internal/probe"
+	"aegis-vds/internal/server"
 	"aegis-vds/internal/sshclient"
 	"aegis-vds/internal/ui"
+	"aegis-vds/web"
 )
 
 func main() {
-	ui.PrintBanner()
-
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
+		case "gui", "--gui":
+			runGUIServer()
+			return
+		case "cli", "wizard":
+			ui.PrintBanner()
+			runWizard()
+			return
 		case "probe":
+			ui.PrintBanner()
 			runProbeCommand(os.Args[2:])
 			return
 		case "scan-sni":
+			ui.PrintBanner()
 			runScanSNICommand(os.Args[2:])
 			return
 		case "help", "--help", "-h":
+			ui.PrintBanner()
 			printUsage()
 			return
 		}
 	}
 
-	// Default to interactive wizard
-	runWizard()
+	// By default, launch the full Graphical UI/UX application in browser!
+	runGUIServer()
 }
 
 func printUsage() {
 	fmt.Printf("%sUsage:%s\n", ui.Bold, ui.Reset)
-	fmt.Println("  aegis                 Launch interactive wizard (Diagnostics & Deploy)")
-	fmt.Println("  aegis probe [flags]   Perform full VDS and DPI diagnostics without deploying")
+	fmt.Println("  aegis                 Launch Graphical UI/UX Dashboard in browser (Default)")
+	fmt.Println("  aegis gui             Launch Graphical UI/UX Dashboard")
+	fmt.Println("  aegis cli             Launch interactive terminal CLI wizard")
+	fmt.Println("  aegis probe [flags]   Perform full VDS and DPI diagnostics in terminal")
 	fmt.Println("  aegis scan-sni        Scan and rank candidate SNI masking domains for Reality")
 	fmt.Println("  aegis help            Show this help message")
 	fmt.Println()
@@ -48,6 +60,22 @@ func printUsage() {
 	fmt.Println("  -p, --port    SSH port (default: 22)")
 	fmt.Println("  -u, --user    SSH username (default: root)")
 	fmt.Println("  -k, --key     Path to SSH private key")
+}
+
+func runGUIServer() {
+	ui.PrintBanner()
+	fmt.Println("  ✨ Starting AegisVDS Graphical UI/UX Application...")
+
+	port := 4344
+	srv := server.NewServer(port, web.FS)
+
+	ui.Success("Opening AegisVDS in your default browser: http://127.0.0.1:%d", port)
+	ui.Info("Press Ctrl+C to stop the application")
+
+	if err := srv.Start(); err != nil {
+		ui.Error("UI Server error: %v", err)
+		os.Exit(1)
+	}
 }
 
 func runWizard() {
@@ -175,13 +203,11 @@ func runWizard() {
 	// 5. Deploy Sing-box & Keys
 	ui.Step(5, 5, "Generating keys & deploying Sing-box to VDS")
 
-	// Enable BBR
 	bbrEnabled, _ := deployer.EnableBBR(client)
 	if bbrEnabled {
 		ui.Success("TCP BBR congestion control activated on VDS")
 	}
 
-	// Keys
 	keys, err := crypto.GenerateRealityKeys()
 	if err != nil {
 		ui.Error("Failed to generate Reality cryptographic keys: %v", err)
@@ -189,7 +215,6 @@ func runWizard() {
 	}
 	ui.Success("Generated X25519 keypair and short ID")
 
-	// Deploy
 	err = deployer.DeploySingBox(client, deployer.DeployConfig{
 		Port:      443,
 		TargetSNI: chosenSNI,
