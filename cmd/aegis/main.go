@@ -16,7 +16,7 @@ import (
 	"aegis-vds/internal/server"
 	"aegis-vds/internal/sshclient"
 	"aegis-vds/internal/ui"
-	"aegis-vds/web"
+	desktopui "aegis-vds/ui"
 )
 
 func main() {
@@ -70,7 +70,7 @@ func printUsage() {
 
 func runBackendServer(autoOpenBrowser bool) {
 	port := 4344
-	srv := server.NewServer(port, web.FS, autoOpenBrowser)
+	srv := server.NewServer(port, desktopui.FS, autoOpenBrowser)
 	if err := srv.Start(); err != nil {
 		ui.Error("Server error: %v", err)
 		os.Exit(1)
