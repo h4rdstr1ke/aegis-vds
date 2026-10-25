@@ -44,6 +44,7 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/api/sni/scan", s.handleSNIScan)
 	mux.HandleFunc("/api/vds/probe", s.handleVDSProbe)
 	mux.HandleFunc("/api/vds/deploy", s.handleVDSDeploy)
+	mux.HandleFunc("/api/local/vpn", s.handleLocalVPN)
 
 	// Static web files
 	fileServer := http.FileServer(http.FS(s.frontendFS))
@@ -319,4 +320,13 @@ func ParsePortOrDefault(val string, defaultVal int) int {
 		return defaultVal
 	}
 	return p
+}
+
+func (s *Server) handleLocalVPN(w http.ResponseWriter, r *http.Request) {
+	vpnStatus, err := probe.InspectLocalVPN()
+	if err != nil {
+		jsonError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	jsonResponse(w, http.StatusOK, vpnStatus)
 }

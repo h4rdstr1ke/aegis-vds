@@ -103,6 +103,10 @@
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
         <span>3. Развертывание Sing-box</span>
       </button>
+      <button onclick="switchTab('vpn')" id="tab-btn-vpn" class="text-gray-400 hover:text-gray-200 px-4 py-2 rounded-lg font-medium text-sm border border-transparent transition flex items-center space-x-2">
+        <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0"/></svg>
+        <span>4. Мониторинг VPN</span>
+      </button>
     </div>
 
     <!-- TAB 1: AUDIT & PROBE -->
@@ -320,6 +324,141 @@
       </div>
     </div>
 
+    <!-- TAB 4: LOCAL VPN MONITOR -->
+    <div id="tab-vpn" class="hidden space-y-6">
+      
+      <!-- Top Overview Card -->
+      <div class="glass rounded-2xl p-6 glow-cyan">
+        <div class="flex items-center justify-between pb-4 border-b border-gray-800">
+          <div class="flex items-center space-x-3">
+            <div class="relative flex items-center justify-center">
+              <span id="vpn-status-dot" class="w-3.5 h-3.5 rounded-full bg-emerald-400 pulse-dot"></span>
+              <span id="vpn-status-ping" class="absolute w-3.5 h-3.5 rounded-full bg-emerald-400/40 animate-ping"></span>
+            </div>
+            <div>
+              <div class="flex items-center space-x-2.5">
+                <h2 id="vpn-status-title" class="text-lg font-bold text-white tracking-tight">VPN Соединение Активно</h2>
+                <span id="vpn-protocol-badge" class="text-xs px-2.5 py-0.5 rounded-full font-mono font-semibold bg-emerald-950 text-emerald-400 border border-emerald-800">
+                  AmneziaWG (AWG)
+                </span>
+              </div>
+              <p id="vpn-interface-sub" class="text-xs text-gray-400 mt-0.5">
+                Сетевой адаптер: <span class="font-mono text-cyan-400" id="vpn-iface">amn0</span> • MTU: <span id="vpn-mtu">1280</span>
+              </p>
+            </div>
+          </div>
+
+          <div class="flex items-center space-x-4">
+            <div class="text-right">
+              <div class="flex items-center space-x-1.5 justify-end">
+                <span id="vpn-country-flag" class="text-lg">🇩🇪</span>
+                <span id="vpn-city-country" class="text-sm font-semibold text-white">Франкфурт, Германия</span>
+              </div>
+              <span id="vpn-org" class="text-xs text-gray-400 font-mono">AS215439 PLAY2GO</span>
+            </div>
+            <button onclick="loadLocalVPN()" class="bg-gray-800 hover:bg-gray-700 text-gray-200 text-xs px-3.5 py-2 rounded-xl border border-gray-700 transition flex items-center space-x-1.5 cursor-pointer">
+              <svg id="vpn-refresh-spin" class="w-3.5 h-3.5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+              <span>Обновить</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 4 Core Metrics Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6">
+          <div class="bg-gray-900/60 rounded-xl p-4 border border-gray-800 relative">
+            <span class="text-xs text-gray-400 block mb-1">Внешний IP адрес (VPN)</span>
+            <div class="flex items-center justify-between">
+              <span id="vpn-public-ip" class="text-lg font-mono font-bold text-cyan-400 select-all">87.120.186.91</span>
+              <button onclick="copyElementText('vpn-public-ip', 'ip-copy-btn')" id="ip-copy-btn" class="text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 px-2 py-1 rounded transition">
+                Копировать
+              </button>
+            </div>
+          </div>
+
+          <div class="bg-gray-900/60 rounded-xl p-4 border border-gray-800">
+            <span class="text-xs text-gray-400 block mb-1">Туннельный IP (Адаптер)</span>
+            <span id="vpn-tunnel-ip" class="text-base font-mono font-bold text-white block">10.8.1.5 / 32</span>
+            <span id="vpn-tunnel-ipv6" class="text-xs text-cyan-400 font-mono truncate block mt-0.5">fd58:baa6:dead::1</span>
+          </div>
+
+          <div class="bg-gray-900/60 rounded-xl p-4 border border-gray-800">
+            <span class="text-xs text-gray-400 block mb-1">Задержка и Джиттер</span>
+            <div class="flex items-baseline space-x-1.5">
+              <span id="vpn-latency" class="text-lg font-mono font-bold text-emerald-400">86.9 ms</span>
+              <span id="vpn-jitter" class="text-xs text-gray-400">(±2.7 ms)</span>
+            </div>
+            <span id="vpn-loss" class="text-xs text-emerald-400 block mt-0.5">Потери пакетов: 0%</span>
+          </div>
+
+          <div class="bg-gray-900/60 rounded-xl p-4 border border-gray-800">
+            <span class="text-xs text-gray-400 block mb-1">Утечки DNS (Leak Protection)</span>
+            <div class="flex items-center space-x-1.5 mt-1">
+              <span id="vpn-dns-leak-dot" class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+              <span id="vpn-dns-leak" class="text-sm font-semibold text-emerald-400">Защищено (Без утечек)</span>
+            </div>
+            <span id="vpn-dns-servers" class="text-xs text-gray-400 font-mono block mt-1">8.8.8.8, 1.1.1.1</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Secondary Details Grid -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        
+        <!-- Network Routing & Process -->
+        <div class="glass rounded-2xl p-6">
+          <h3 class="text-sm font-semibold text-white mb-4 flex items-center space-x-2">
+            <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            <span>Маршрутизация и процесс в системе</span>
+          </h3>
+
+          <div class="space-y-3 text-xs">
+            <div class="bg-gray-900/70 p-3 rounded-xl border border-gray-800 flex justify-between items-center">
+              <span class="text-gray-400">Шлюз по умолчанию:</span>
+              <span id="vpn-route" class="font-mono text-cyan-300">0.0.0.0/1 dev amn0</span>
+            </div>
+            <div class="bg-gray-900/70 p-3 rounded-xl border border-gray-800 flex justify-between items-center">
+              <span class="text-gray-400">Исполняемый процесс:</span>
+              <span id="vpn-process" class="font-mono text-emerald-400">amneziawg-go</span>
+            </div>
+            <div class="bg-gray-900/70 p-3 rounded-xl border border-gray-800 flex justify-between items-center">
+              <span class="text-gray-400">Режим туннелирования:</span>
+              <span class="text-emerald-400 font-medium">Full Tunnel (Весь трафик ПК)</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Interface Traffic Stats -->
+        <div class="glass rounded-2xl p-6">
+          <h3 class="text-sm font-semibold text-white mb-4 flex items-center space-x-2">
+            <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/></svg>
+            <span>Статистика переданного трафика</span>
+          </h3>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div class="bg-gray-900/70 p-4 rounded-xl border border-gray-800">
+              <span class="text-xs text-gray-400 flex items-center justify-between mb-1">
+                <span>Принято (RX)</span>
+                <span class="text-emerald-400 font-bold">↓</span>
+              </span>
+              <div id="vpn-rx-bytes" class="text-xl font-bold font-mono text-white">-- MB</div>
+              <span id="vpn-rx-packets" class="text-xs text-gray-500 font-mono mt-0.5 block">-- пакетов</span>
+            </div>
+
+            <div class="bg-gray-900/70 p-4 rounded-xl border border-gray-800">
+              <span class="text-xs text-gray-400 flex items-center justify-between mb-1">
+                <span>Отправлено (TX)</span>
+                <span class="text-cyan-400 font-bold">↑</span>
+              </span>
+              <div id="vpn-tx-bytes" class="text-xl font-bold font-mono text-white">-- MB</div>
+              <span id="vpn-tx-packets" class="text-xs text-gray-500 font-mono mt-0.5 block">-- пакетов</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
   </main>
 
   <footer class="border-t border-gray-800/80 py-4 text-center text-xs text-gray-500">
@@ -332,7 +471,7 @@
     let lastDeployData = null;
 
     function switchTab(tabId) {
-      ['audit', 'sni', 'deploy'].forEach(t => {
+      ['audit', 'sni', 'deploy', 'vpn'].forEach(t => {
         document.getElementById('tab-' + t).classList.add('hidden');
         document.getElementById('tab-btn-' + t).classList.remove('tab-active');
         document.getElementById('tab-btn-' + t).classList.add('text-gray-400');
@@ -343,6 +482,8 @@
 
       if (tabId === 'sni') {
         runSNIScan();
+      } else if (tabId === 'vpn') {
+        loadLocalVPN();
       }
     }
 
@@ -568,9 +709,100 @@
       URL.revokeObjectURL(url);
     }
 
-    // Auto-init SNI scan on load
+    async function loadLocalVPN() {
+      const spin = document.getElementById('vpn-refresh-spin');
+      if (spin) spin.classList.add('animate-spin');
+
+      try {
+        const res = await fetch('/api/local/vpn');
+        const data = await res.json();
+
+        const dot = document.getElementById('vpn-status-dot');
+        const ping = document.getElementById('vpn-status-ping');
+        const title = document.getElementById('vpn-status-title');
+        const badge = document.getElementById('vpn-protocol-badge');
+
+        if (data.is_connected) {
+          dot.className = 'w-3.5 h-3.5 rounded-full bg-emerald-400 pulse-dot';
+          ping.className = 'absolute w-3.5 h-3.5 rounded-full bg-emerald-400/40 animate-ping';
+          title.innerText = 'VPN Соединение Активно';
+          badge.className = 'text-xs px-2.5 py-0.5 rounded-full font-mono font-semibold bg-emerald-950 text-emerald-400 border border-emerald-800';
+          badge.innerText = data.protocol || 'VPN Tunnel';
+        } else {
+          dot.className = 'w-3.5 h-3.5 rounded-full bg-gray-500';
+          ping.className = 'hidden';
+          title.innerText = 'VPN Не Активен';
+          badge.className = 'text-xs px-2.5 py-0.5 rounded-full font-mono font-semibold bg-gray-800 text-gray-400 border border-gray-700';
+          badge.innerText = 'Прямое соединение';
+        }
+
+        document.getElementById('vpn-iface').innerText = data.interface_name || 'wlo1 / eno2';
+        document.getElementById('vpn-mtu').innerText = data.mtu || 1500;
+        document.getElementById('vpn-country-flag').innerText = getFlagEmoji(data.country_code);
+        document.getElementById('vpn-city-country').innerText = `${data.city || 'Неизвестно'}, ${data.country || 'N/A'}`;
+        document.getElementById('vpn-org').innerText = data.isp || 'Локальный ISP';
+
+        document.getElementById('vpn-public-ip').innerText = data.public_ip || '--';
+        document.getElementById('vpn-tunnel-ip').innerText = data.tunnel_ipv4 || 'Нет туннельного IP';
+        document.getElementById('vpn-tunnel-ipv6').innerText = data.tunnel_ipv6 || 'IPv6 не настроен';
+
+        document.getElementById('vpn-latency').innerText = `${data.latency_ms} ms`;
+        document.getElementById('vpn-jitter').innerText = `(±${data.jitter_ms} ms)`;
+        document.getElementById('vpn-loss').innerText = `Потери пакетов: ${data.packet_loss_rate}%`;
+
+        const leakDot = document.getElementById('vpn-dns-leak-dot');
+        const leakText = document.getElementById('vpn-dns-leak');
+        if (data.dns_leak_protected) {
+          leakDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400';
+          leakText.className = 'text-sm font-semibold text-emerald-400';
+          leakText.innerText = 'Защищено (Без утечек)';
+        } else {
+          leakDot.className = 'w-2.5 h-2.5 rounded-full bg-yellow-400';
+          leakText.className = 'text-sm font-semibold text-yellow-400';
+          leakText.innerText = 'Возможна утечка DNS';
+        }
+        document.getElementById('vpn-dns-servers').innerText = (data.dns_resolvers && data.dns_resolvers.length > 0) ? data.dns_resolvers.join(', ') : '127.0.0.53';
+
+        document.getElementById('vpn-route').innerText = data.default_route || 'default via gateway';
+        document.getElementById('vpn-process').innerText = data.process_name || 'Не обнаружен';
+
+        const rxMb = (data.rx_bytes / (1024 * 1024)).toFixed(1);
+        const txMb = (data.tx_bytes / (1024 * 1024)).toFixed(1);
+        document.getElementById('vpn-rx-bytes').innerText = `${rxMb} MB`;
+        document.getElementById('vpn-rx-packets').innerText = `${(data.rx_packets || 0).toLocaleString()} пакетов`;
+        document.getElementById('vpn-tx-bytes').innerText = `${txMb} MB`;
+        document.getElementById('vpn-tx-packets').innerText = `${(data.tx_packets || 0).toLocaleString()} пакетов`;
+
+      } catch (err) {
+        console.error('Failed to load VPN status:', err);
+      } finally {
+        if (spin) spin.classList.remove('animate-spin');
+      }
+    }
+
+    function copyElementText(elemId, btnId) {
+      const text = document.getElementById(elemId).innerText;
+      navigator.clipboard.writeText(text);
+      const btn = document.getElementById(btnId);
+      if (btn) {
+        btn.innerText = 'Скопировано!';
+        setTimeout(() => btn.innerText = 'Копировать', 2000);
+      }
+    }
+
+    function getFlagEmoji(countryCode) {
+      if (!countryCode || countryCode.length !== 2) return '🌐';
+      const codePoints = countryCode
+        .toUpperCase()
+        .split('')
+        .map(char => 127397 + char.charCodeAt());
+      return String.fromCodePoint(...codePoints);
+    }
+
+    // Auto-init on load
     window.addEventListener('DOMContentLoaded', () => {
       runSNIScan();
+      loadLocalVPN();
     });
   </script>
 </body>
