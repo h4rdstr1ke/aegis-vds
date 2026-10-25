@@ -321,7 +321,6 @@ func ParsePortOrDefault(val string, defaultVal int) int {
 	}
 	return p
 }
-
 func (s *Server) handleLocalVPN(w http.ResponseWriter, r *http.Request) {
 	vpnStatus, err := probe.InspectLocalVPN()
 	if err != nil {
